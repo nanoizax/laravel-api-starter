@@ -3,14 +3,23 @@
 namespace App\Repositories;
 
 use App\Contracts\Repositories\UserRepositoryInterface;
+use App\Exceptions\Domain\EmailAlreadyInUseException;
+use App\Exceptions\Domain\UserNotFoundException;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class UserRepository implements UserRepositoryInterface
 {
-    public function findById(string $id): ?User
+    public function findById(string $id): User
     {
-        return User::find($id);
+        $user = User::find($id);
+
+        if ($user === null) {
+            throw new UserNotFoundException($id);
+        }
+
+        return $user;
     }
 
     public function findByEmail(string $email): ?User
@@ -35,14 +44,22 @@ class UserRepository implements UserRepositoryInterface
 
     public function create(array $data): User
     {
-        return User::create($data);
+        try {
+            return User::create($data);
+        } catch (UniqueConstraintViolationException) {
+            throw new EmailAlreadyInUseException($data['email'] ?? '');
+        }
     }
 
     public function update(User $user, array $data): User
     {
-        $user->update($data);
+        try {
+            $user->update($data);
 
-        return $user->fresh();
+            return $user->fresh();
+        } catch (UniqueConstraintViolationException) {
+            throw new EmailAlreadyInUseException($data['email'] ?? '');
+        }
     }
 
     public function delete(User $user): bool

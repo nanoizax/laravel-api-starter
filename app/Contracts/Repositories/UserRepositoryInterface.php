@@ -7,7 +7,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 interface UserRepositoryInterface
 {
-    public function findById(string $id): ?User;
+    /**
+     * @throws \App\Exceptions\Domain\UserNotFoundException
+     */
+    public function findById(string $id): User;
 
     public function findByEmail(string $email): ?User;
 
