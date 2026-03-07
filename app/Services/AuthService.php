@@ -3,9 +3,10 @@
 namespace App\Services;
 
 use App\Contracts\Repositories\UserRepositoryInterface;
+use App\Exceptions\Domain\AccountDisabledException;
+use App\Exceptions\Domain\InvalidCredentialsException;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
@@ -15,11 +16,13 @@ class AuthService
 
     public function register(array $data): array
     {
+        // EmailAlreadyInUseException propagates from the repository
+        // if the unique constraint is violated at the DB level.
         $user = $this->userRepository->create([
-            'name' => $data['name'],
-            'email' => strtolower(trim($data['email'])),
+            'name'     => $data['name'],
+            'email'    => strtolower(trim($data['email'])),
             'password' => Hash::make($data['password']),
-            'role' => 'user',
+            'role'     => 'user',
         ]);
 
         $token = $user->createToken('api')->plainTextToken;
@@ -29,18 +32,17 @@ class AuthService
 
     public function login(array $credentials): array
     {
-        $user = $this->userRepository->findByEmail(strtolower(trim($credentials['email'])));
+        $email = strtolower(trim($credentials['email']));
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+        $user = $this->userRepository->findByEmail($email);
+
+        if ($user === null || ! Hash::check($credentials['password'], $user->password)) {
+            // Intentionally vague: do not reveal whether the email exists.
+            throw new InvalidCredentialsException();
         }
 
         if (! $user->is_active) {
-            throw ValidationException::withMessages([
-                'email' => ['Account is disabled.'],
-            ]);
+            throw new AccountDisabledException();
         }
 
         $token = $user->createToken('api')->plainTextToken;
