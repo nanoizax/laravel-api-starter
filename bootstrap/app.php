@@ -1,5 +1,9 @@
 <?php
 
+use App\Exceptions\Domain\AccountDisabledException;
+use App\Exceptions\Domain\EmailAlreadyInUseException;
+use App\Exceptions\Domain\InvalidCredentialsException;
+use App\Exceptions\Domain\UserNotFoundException;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,6 +28,42 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (UserNotFoundException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'NOT_FOUND', 'message' => $e->getMessage()],
+                ], 404);
+            }
+        });
+
+        $exceptions->render(function (EmailAlreadyInUseException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'CONFLICT', 'message' => $e->getMessage()],
+                ], 409);
+            }
+        });
+
+        $exceptions->render(function (InvalidCredentialsException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'UNAUTHORIZED', 'message' => $e->getMessage()],
+                ], 401);
+            }
+        });
+
+        $exceptions->render(function (AccountDisabledException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'FORBIDDEN', 'message' => $e->getMessage()],
+                ], 403);
+            }
+        });
+
         $exceptions->render(function (ValidationException $e, Request $request) {
             if ($request->expectsJson()) {
                 return response()->json([
