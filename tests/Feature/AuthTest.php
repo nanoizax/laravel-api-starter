@@ -13,9 +13,9 @@ class AuthTest extends TestCase
     public function test_user_can_register(): void
     {
         $response = $this->postJson('/api/auth/register', [
-            'name' => 'John Doe',
-            'email' => 'john@example.com',
-            'password' => 'Secret123',
+            'name'                  => 'John Doe',
+            'email'                 => 'john@example.com',
+            'password'              => 'Secret123',
             'password_confirmation' => 'Secret123',
         ]);
 
@@ -31,24 +31,27 @@ class AuthTest extends TestCase
         User::factory()->create(['email' => 'john@example.com']);
 
         $response = $this->postJson('/api/auth/register', [
-            'name' => 'John Doe',
-            'email' => 'john@example.com',
-            'password' => 'Secret123',
+            'name'                  => 'John Doe',
+            'email'                 => 'john@example.com',
+            'password'              => 'Secret123',
             'password_confirmation' => 'Secret123',
         ]);
 
-        $response->assertStatus(422);
+        // EmailAlreadyInUseException → 409 CONFLICT
+        $response->assertStatus(409)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'CONFLICT');
     }
 
     public function test_user_can_login(): void
     {
         User::factory()->create([
-            'email' => 'john@example.com',
+            'email'    => 'john@example.com',
             'password' => bcrypt('Secret123'),
         ]);
 
         $response = $this->postJson('/api/auth/login', [
-            'email' => 'john@example.com',
+            'email'    => 'john@example.com',
             'password' => 'Secret123',
         ]);
 
@@ -61,11 +64,33 @@ class AuthTest extends TestCase
         User::factory()->create(['email' => 'john@example.com']);
 
         $response = $this->postJson('/api/auth/login', [
-            'email' => 'john@example.com',
+            'email'    => 'john@example.com',
             'password' => 'WrongPassword',
         ]);
 
-        $response->assertStatus(422);
+        // InvalidCredentialsException → 401 UNAUTHORIZED
+        $response->assertStatus(401)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'UNAUTHORIZED');
+    }
+
+    public function test_login_fails_for_disabled_account(): void
+    {
+        User::factory()->create([
+            'email'     => 'disabled@example.com',
+            'password'  => bcrypt('Secret123'),
+            'is_active' => false,
+        ]);
+
+        $response = $this->postJson('/api/auth/login', [
+            'email'    => 'disabled@example.com',
+            'password' => 'Secret123',
+        ]);
+
+        // AccountDisabledException → 403 FORBIDDEN
+        $response->assertStatus(403)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'FORBIDDEN');
     }
 
     public function test_authenticated_user_can_get_profile(): void
